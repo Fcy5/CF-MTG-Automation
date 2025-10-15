@@ -1123,89 +1123,43 @@ def get_batch_progress(task_id):
 
 flask_port = None
 
-# def run_flask():
-#     global flask_port
-#
-#     # 动态获取可用端口
-#     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     s.bind(('127.0.0.1', 0))
-#     port = s.getsockname()[1]
-#     s.close()
-#     # flask_port = port
-#     flask_port = 5000
-#
-#     logger.info(f"Flask 服务启动：http://127.0.0.1:{port}")
-#     app.run(host='127.0.0.1', port=port, debug=True, use_reloader=False)
-
-# 新增：全局锁和启动状态标志（放在文件顶部，全局变量区域）
-import threading
-
-flask_started = False
-flask_lock = threading.Lock()
-
 
 def run_flask():
-    global flask_port, flask_started
-    flask_port = 5000  # 固定端口，避免动态端口分配的竞态问题
+    global flask_port
 
-    # 关键：加锁判断，确保仅启动一次
-    with flask_lock:
-        if flask_started:
-            logger.info("Flask服务已启动，跳过重复启动")
-            return
-        flask_started = True
+    # 动态选择可用端口
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
 
-    logger.info(f"Flask 服务启动：http://127.0.0.1:{flask_port}")
-    try:
-        app.run(
-            host='127.0.0.1',
-            port=flask_port,
-            debug=True,  # 调试模式保留（浏览器显示错误栈），打包后可改为False
-            use_reloader=False,  # 必须关闭，否则Flask会自动重启一次
-            threaded=True,  # 支持多线程，应对前端多请求
-            processes=1  # 新增：单进程模式，避免多进程导致的服务重复
-        )
-    except OSError as e:
-        # 处理端口被占用的异常（避免无限报错）
-        if "address already in use" in str(e):
-            logger.error(f"端口{flask_port}已被占用，尝试重启服务...")
-            flask_port += 1  # 端口+1重试
-            run_flask()  # 递归重试（仅1次，避免无限递归）
-        else:
-            logger.error(f"Flask服务启动失败：{str(e)}")
+    flask_port = port  # 存储端口号
+
+    logger.info(f"Starting Flask on port {port}")
+
+    # 启动Flask
+    app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False)
 
 
 def main():
-    global flask_port
-    flask_port = None
+    # 启动Flask服务器（子线程）
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
 
-    # 关键：仅启动一个Flask线程，且用锁保护
-    with flask_lock:
-        if not flask_started:
-            flask_thread = threading.Thread(target=run_flask, daemon=True)
-            flask_thread.start()
-        else:
-            logger.info("Flask线程已存在，无需重复启动")
-
-    # 等待端口初始化完成（最多等待5秒，避免无限阻塞）
-    import time
-    wait_time = 0
-    while flask_port is None and wait_time < 5:
+    # 等待端口分配完成
+    while flask_port is None:
         time.sleep(0.1)
-        wait_time += 0.1
-    if flask_port is None:
-        logger.error("Flask端口初始化超时，无法启动WebView")
-        return
 
-    # 启动WebView（保持原逻辑）
+    # 启动PyWebView窗口，使用动态端口
     webview.create_window(
-        title="广告活动克隆工具",
-        url=f"http://127.0.0.1:{flask_port}",
+        title="ClickFlare 日志工具",
+        url=f"http://127.0.0.1:{flask_port}",  # 使用动态端口
         width=1000,
         height=800,
         resizable=True
     )
     webview.start()
+
 
 if __name__ == '__main__':
     main()
