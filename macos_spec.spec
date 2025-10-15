@@ -28,7 +28,7 @@ a = Analysis(
     ['app.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
-    datas=templates_files + statics_files,,
+    datas=templates_files + statics_files,
     hiddenimports=[
         # Flask/Web核心依赖
         'flask', 'flask.json', 'jinja2', 'jinja2.ext',
@@ -62,7 +62,7 @@ app = BUNDLE(
         a.binaries,
         a.zipfiles,
         a.datas,
-        name='ClickFlare工具',
+        name='Cf-Mtg广告克隆工具',
         debug=False,
         strip=False,
         upx=False,  # 关闭压缩避免原生库损坏
@@ -74,7 +74,7 @@ app = BUNDLE(
         codesign_identity=None,
         entitlements_file=None,
     ),
-    name='ClickFlare工具.app',
+    name='Cf-Mtg广告克隆工具.app',
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
         'NSHighResolutionCapable': 'True',
