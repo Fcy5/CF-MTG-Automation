@@ -1,13 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+from glob import glob
 
 block_cipher = None
 
-# 明确指定打包输出目录（避免默认路径歧义）
-dist_dir = os.path.abspath('dist')  # 最终产物目录
-work_dir = os.path.abspath('build')  # 临时工作目录
-
-# 处理模板文件（templates）
+# 修复1：模板文件路径（兼容空文件夹/不存在场景）
 templates_files = []
 templates_dir = os.path.abspath('templates')
 if os.path.exists(templates_dir):
@@ -31,17 +28,17 @@ a = Analysis(
     ['app.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
-    datas=templates_files + statics_files,
+    datas=templates_files + statics_files,,
     hiddenimports=[
         # Flask/Web核心依赖
         'flask', 'flask.json', 'jinja2', 'jinja2.ext',
         'werkzeug', 'werkzeug.middleware.dispatcher',
         'requests', 'urllib3',
 
-        # 文件上传相关依赖
+        # 修复2：移除不存在的`multipart`，替换为实际依赖的`werkzeug.formparser`（文件上传用）
         'werkzeug.formparser', 'werkzeug.datastructures',
 
-        # Mac原生依赖
+        # Mac原生依赖（解决闪退）
         'objc', 'Foundation', 'Cocoa', 'WebKit',
         'webview', 'webview.platforms.cocoa',
 
@@ -58,32 +55,35 @@ a = Analysis(
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-
-# 保留并修改BUNDLE部分：
 app = BUNDLE(
-    COLLECT(  # 使用COLLECT替代EXE
+    EXE(
         pyz,
         a.scripts,
         a.binaries,
         a.zipfiles,
         a.datas,
-        name='CF-MTG杀毒克隆工具',
+        name='ClickFlare工具',
+        debug=False,
         strip=False,
-        upx=False,
+        upx=False,  # 关闭压缩避免原生库损坏
+        console=True,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        # 修复3：`target_arch`不能用列表，用字符串（GitHub macOS-15.5是arm64，兼容M芯片）
+        target_arch='arm64',
+        codesign_identity=None,
+        entitlements_file=None,
     ),
-    name='CF-MTG杀毒克隆工具.app',
-    icon=None,  # 可添加图标路径如'icon.icns'
+    name='ClickFlare工具.app',
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
         'NSHighResolutionCapable': 'True',
         'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True},
+        # 文件访问权限（解决闪退）
         'NSPhotoLibraryUsageDescription': '需要访问照片库以上传素材',
         'NSDocumentsFolderUsageDescription': '需要处理上传的文件',
         'NSDesktopFolderUsageDescription': '需要访问桌面文件',
         'NSDownloadsFolderUsageDescription': '需要访问下载文件夹',
-        'LSMinimumSystemVersion': '10.15',
-        # 添加CFBundleExecutable
-        'CFBundleExecutable': 'CF-MTG杀毒克隆工具',
+        'LSMinimumSystemVersion': '10.15',  # 最低系统版本
     },
-    distpath=dist_dir,
 )
