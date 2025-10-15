@@ -110,7 +110,7 @@ app = BUNDLE(
         'NSDesktopFolderUsageDescription': '需要访问桌面文件',
         'NSDownloadsFolderUsageDescription': '需要访问下载文件夹',
         'NSFileSystemUsageDescription': '需要访问文件系统以加载模板资源',
-        'NSAppleEventsUsageDescription': '需要访问文件系统以加载模板资源'
+        'NSAppleEventsUsageDescription': '需要访问文件系统以加载模板资源',
         'LSMinimumSystemVersion': '10.15',
     },
     distpath=dist_dir,
