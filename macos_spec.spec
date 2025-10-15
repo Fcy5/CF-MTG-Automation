@@ -63,7 +63,7 @@ app = BUNDLE(
         a.binaries,
         a.zipfiles,
         a.datas,
-        name='ClickFlare杀毒克隆工具',
+        name='CF-MTG杀毒克隆工具',
         debug=False,
         strip=False,
         upx=False,
@@ -74,7 +74,7 @@ app = BUNDLE(
         codesign_identity=None,
         entitlements_file=None,
     ),
-    name='ClickFlare杀毒克隆工具.app',
+    name='CF-MTG杀毒克隆工具.app',
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
         'NSHighResolutionCapable': 'True',
