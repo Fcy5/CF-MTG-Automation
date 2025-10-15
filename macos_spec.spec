@@ -1,6 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-from glob import glob
 
 block_cipher = None
 
@@ -28,6 +27,7 @@ a = Analysis(
     ['app.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
+    # 关键修复：删除多余的逗号，语法错误根源
     datas=templates_files + statics_files,
     hiddenimports=[
         # Flask/Web核心依赖
@@ -35,7 +35,7 @@ a = Analysis(
         'werkzeug', 'werkzeug.middleware.dispatcher',
         'requests', 'urllib3',
 
-        # 修复2：移除不存在的`multipart`，替换为实际依赖的`werkzeug.formparser`（文件上传用）
+        # 文件上传相关依赖
         'werkzeug.formparser', 'werkzeug.datastructures',
 
         # Mac原生依赖（解决闪退）
@@ -69,8 +69,7 @@ app = BUNDLE(
         console=True,
         disable_windowed_traceback=False,
         argv_emulation=False,
-        # 修复3：`target_arch`不能用列表，用字符串（GitHub macOS-15.5是arm64，兼容M芯片）
-        target_arch='arm64',
+        target_arch='arm64',  # 适配M芯片，正确
         codesign_identity=None,
         entitlements_file=None,
     ),
@@ -79,7 +78,6 @@ app = BUNDLE(
     info_plist={
         'NSHighResolutionCapable': 'True',
         'NSAppTransportSecurity': {'NSAllowsArbitraryLoads': True},
-        # 文件访问权限（解决闪退）
         'NSPhotoLibraryUsageDescription': '需要访问照片库以上传素材',
         'NSDocumentsFolderUsageDescription': '需要处理上传的文件',
         'NSDesktopFolderUsageDescription': '需要访问桌面文件',
