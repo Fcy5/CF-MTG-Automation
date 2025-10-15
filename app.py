@@ -13,8 +13,7 @@ from pathlib import Path
 
 import webview
 from flask import Flask, request, jsonify, render_template
-
-
+from jinja2 import FileSystemLoader, Environment
 
 # 配置日志（保留原配置，增加调试级日志便于排查）
 # 原日志配置基础上，增加文件输出
@@ -29,31 +28,48 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-
-# 初始化 Flask 应用时，显式指定模板文件夹路径
-# 在app.py的get_resource_path函数后，app初始化前添加日志
 def get_resource_path(relative_path):
-    """获取资源文件的绝对路径，兼容开发环境和打包环境"""
+    # 原函数逻辑保留，新增返回值前的检查
     if getattr(sys, 'frozen', False):
-        # 打包后的环境（Onedir模式下，sys._MEIPASS指向.app/Contents/Resources）
         base_path = sys._MEIPASS
-        logger.debug(f"打包环境：sys._MEIPASS = {base_path}")
     else:
-        # 开发环境
         base_path = os.path.abspath(".")
-        logger.debug(f"开发环境：base_path = {base_path}")
     final_path = os.path.join(base_path, relative_path)
-    logger.debug(f"获取资源路径：{relative_path} → {final_path}")
-    # 检查路径是否存在
-    if os.path.exists(final_path):
-        logger.debug(f"路径存在：{final_path}")
-        # 如果是目录，打印目录下的文件
-        if os.path.isdir(final_path):
-            files = os.listdir(final_path)
-            logger.debug(f"目录下文件：{files}")
-    else:
-        logger.error(f"路径不存在：{final_path}")
+
+    # 新增：检查路径是否为文件（若传入的是文件路径）
+    if os.path.isfile(final_path):
+        # 检查文件权限（可读）
+        is_readable = os.access(final_path, os.R_OK)
+        # 检查文件大小（避免空文件）
+        file_size = os.path.getsize(final_path)
+        # 打印详细信息
+        logger.debug(f"[文件检查] 路径：{final_path}")
+        logger.debug(f"[文件检查] 可读权限：{is_readable} | 文件大小：{file_size}字节")
+        # 若不可读或空文件，抛出明确错误
+        if not is_readable:
+            logger.error(f"[文件检查] 错误：无读取权限！请检查文件权限")
+        if file_size == 0:
+            logger.error(f"[文件检查] 错误：文件为空！可能是打包时未正确写入")
+    # 若传入的是目录，检查目录下的文件详情
+    elif os.path.isdir(final_path):
+        logger.debug(f"[目录检查] 路径：{final_path}")
+        for filename in os.listdir(final_path):
+            file_path = os.path.join(final_path, filename)
+            is_file = os.path.isfile(file_path)
+            is_readable = os.access(file_path, os.R_OK)
+            file_size = os.path.getsize(file_path) if is_file else 0
+            logger.debug(f"[目录检查] 文件：{filename} | 是文件：{is_file} | 可读：{is_readable} | 大小：{file_size}字节")
+            # 重点检查index.html
+            if filename.lower() == "index.html":
+                if not is_readable:
+                    logger.error(f"[目录检查] 关键错误：index.html无读取权限！")
+                if file_size == 0:
+                    logger.error(f"[目录检查] 关键错误：index.html为空文件！")
     return final_path
+
+
+# 修改index路由，先手动确认文件存在再加载
+
 
 # 初始化Flask应用（此时会触发get_resource_path的日志）
 app = Flask(
@@ -61,6 +77,44 @@ app = Flask(
     template_folder=get_resource_path('templates'),
     static_folder=get_resource_path('statics')
 )
+template_loader = FileSystemLoader(
+    searchpath=app.template_folder,  # 明确指向模板目录
+    encoding='utf-8'  # 指定编码，避免中文/特殊字符问题
+)
+# 替换Flask默认的Jinja2环境
+app.jinja_env = Environment(
+    loader=template_loader,
+    autoescape=app.jinja_env.autoescape,  # 保留原自动转义配置
+    extensions=app.jinja_env.extensions  # 保留原扩展
+)
+# 关闭Jinja2缓存（开发模式下，避免缓存导致的旧路径问题）
+app.jinja_env.cache = None
+logger.debug(f"[手动配置] Jinja2加载器已初始化，搜索路径：{app.template_folder}")
+
+@app.route('/')
+def index():
+    try:
+        # 1. 手动拼接index.html的完整路径
+        template_dir = app.template_folder
+        index_path = os.path.join(template_dir, 'index.html')
+
+        # 2. 手动检查文件（绕开Flask加载器，直接操作系统文件）
+        logger.info(f"[手动检查] index.html路径：{index_path}")
+        if not os.path.exists(index_path):
+            raise FileNotFoundError(f"手动检查：文件不存在！")
+        if not os.path.isfile(index_path):
+            raise IsADirectoryError(f"手动检查：{index_path}是目录，不是文件！")
+        if not os.access(index_path, os.R_OK):
+            raise PermissionError(f"手动检查：无读取权限！当前用户：{os.getlogin()}")
+        if os.path.getsize(index_path) == 0:
+            raise ValueError(f"手动检查：文件为空！")
+
+        # 3. 若以上检查通过，再尝试加载模板
+        logger.info(f"[手动检查] 所有检查通过，尝试加载模板")
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"加载index.html失败：{str(e)}", exc_info=True)
+        raise
 
 # 新增调试路由：访问http://127.0.0.1:端口/check-template查看实际路径
 @app.route('/check-template')
@@ -81,17 +135,6 @@ def check_template():
     """
 
 # 原index路由保留，但增加异常捕获和日志
-@app.route('/')
-def index():
-    try:
-        template_dir = app.template_folder
-        logger.info(f"尝试加载index.html，模板目录：{template_dir}")
-        logger.info(f"模板目录下文件：{os.listdir(template_dir)}")
-        return render_template('index.html')
-    except Exception as e:
-        logger.error(f"加载index.html失败：{str(e)}", exc_info=True)
-        # 抛出更详细的异常信息
-        raise Exception(f"加载模板失败！模板目录：{template_dir}，目录下文件：{os.listdir(template_dir) if os.path.exists(template_dir) else '目录不存在'}") from e
 
 
 # 配置 API 密钥
