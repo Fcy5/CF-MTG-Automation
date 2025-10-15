@@ -32,16 +32,21 @@ a = Analysis(
     pathex=[os.path.abspath('.')],
     binaries=[],
     datas=templates_files + statics_files,
-    hiddenimports=[
-        'flask', 'flask.json', 'jinja2', 'jinja2.ext',
-        'werkzeug', 'werkzeug.middleware.dispatcher',
-        'requests', 'urllib3',
-        'werkzeug.formparser', 'werkzeug.datastructures',
-        'objc', 'Foundation', 'Cocoa', 'WebKit',
-        'webview', 'webview.platforms.cocoa',
-        'tempfile', 'os', 'sys', 'io',
-        'json', 'datetime', 'threading', 'socket',
-    ],
+   hiddenimports=[
+    # 原有依赖...
+    'flask', 'flask.json', 'jinja2', 'jinja2.ext',
+    'werkzeug', 'werkzeug.middleware.dispatcher',
+    'requests', 'urllib3',
+    'werkzeug.formparser', 'werkzeug.datastructures',
+    'objc', 'Foundation', 'Cocoa', 'WebKit',
+    'webview', 'webview.platforms.cocoa',
+    # 新增：pywebview依赖
+    'proxy_tools', 'bottle',
+    # 新增：requests可能依赖的子模块
+    'requests.adapters', 'requests.packages.urllib3.util',
+    # 新增：标准库可能漏的模块
+    'hashlib', 're', 'csv'
+],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

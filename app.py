@@ -15,7 +15,15 @@ import webview
 from flask import Flask, request, jsonify, render_template
 
 # 配置日志（保留原配置，增加调试级日志便于排查）
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# 原日志配置基础上，增加文件输出
+logging.basicConfig(
+    level=logging.DEBUG,  # 改为DEBUG，输出更详细日志
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(Path.home(), "Downloads/CF_MTG_Error.log")),  # 日志存到下载目录
+        logging.StreamHandler()  # 同时输出到控制台
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # 初始化 Flask 应用（保留打包适配）
@@ -516,13 +524,19 @@ from werkzeug.datastructures import FileStorage  # 用于模拟文件上传
 import requests
 
 
-
-
-
 def get_static_image_file():
-    """读取静态图片文件，封装为FileStorage（修复流关闭问题）"""
+    """读取静态图片文件，封装为FileStorage（修复打包后路径问题）"""
     try:
-        STATIC_IMAGE_PATH = "statics/68d0b1d4cc068.jpeg"  # 确保路径正确
+        # 关键：打包后用sys._MEIPASS拼接路径，与模板文件逻辑一致
+        if getattr(sys, 'frozen', False):
+            # 打包后：statics在sys._MEIPASS下
+            static_dir = os.path.join(sys._MEIPASS, 'statics')
+        else:
+            # 开发环境：statics在项目根目录
+            static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'statics')
+
+        STATIC_IMAGE_PATH = os.path.join(static_dir, '68d0b1d4cc068.jpeg')  # 拼接完整路径
+
         # 1. 检查文件是否存在
         if not os.path.exists(STATIC_IMAGE_PATH):
             raise FileNotFoundError(f"静态图片不存在！路径：{STATIC_IMAGE_PATH}")
@@ -531,21 +545,20 @@ def get_static_image_file():
         if not STATIC_IMAGE_PATH.lower().endswith(('.jpeg', '.jpg', '.png')):
             raise TypeError("静态文件必须是JPG/PNG格式")
 
-        # 【核心修复】不用with open（避免自动关闭），手动控制文件流
-        f = open(STATIC_IMAGE_PATH, "rb")  # 保持文件打开状态
+        # 读取文件（保持原逻辑）
+        f = open(STATIC_IMAGE_PATH, "rb")
         file_obj = FileStorage(
-            stream=f,  # 直接传递打开的流
+            stream=f,
             filename="68d0b1d4cc068.jpeg",
             content_type="image/jpeg"
         )
-        # 重置流指针到开头（防止之前被读取过）
         file_obj.stream.seek(0)
         file_size = os.path.getsize(STATIC_IMAGE_PATH)
         logger.info(f"成功读取静态图片：路径={STATIC_IMAGE_PATH}, 大小={file_size}字节")
-        return file_obj  # 返回FileStorage，后续由upload_creative_file关闭流
+        return file_obj
     except Exception as e:
         logger.error(f"读取静态图片失败：{str(e)}", exc_info=True)
-        raise  # 抛出异常中断流程
+        raise
 
 
 def upload_creative_file(file):
@@ -784,327 +797,6 @@ def get_timezone_offset(tz_name):
     return tz_map.get(tz_name, 8.0)  # 默认使用东八区
 
 
-# @app.route('/api/mtg/batch_create_campaign_offer', methods=['POST'])
-# def batch_create_campaign_offer():
-#     """
-#     批量创建MTG Campaign+Offer（完全复用现有create_campaign_with_creative和create_offer逻辑）
-#     请求参数：
-#     - cf_success_list: CSV导入的CF活动列表（含name、campaign_id、url）
-#     - creative_set_id: 选中的素材组ID
-#     """
-#     try:
-#         data = request.json
-#         cf_success_list = data.get('cf_success_list', [])
-#         creative_set_id = data.get('creative_set_id')
-#
-#         # 基础参数校验（参照你create_offer的校验风格）
-#         if not cf_success_list:
-#             return jsonify({"code": 400, "msg": "缺少CF成功列表（cf_success_list）"}), 400
-#         if not creative_set_id:
-#             return jsonify({"code": 400, "msg": "缺少素材组ID（creative_set_id）"}), 400
-#         # 素材组ID转整数（参照你create_offer中的ID校验）
-#         try:
-#             creative_set_id = int(creative_set_id)
-#         except:
-#             return jsonify({"code": 400, "msg": "素材组ID必须为整数"}), 400
-#
-#         logger.info(f"=== 开始批量创建MTG广告（共{len(cf_success_list)}个）===")
-#         success = []
-#         fail = []
-#
-#         # 遍历每个CF活动，批量创建
-#         for idx, cf_item in enumerate(cf_success_list, 1):
-#             # 提取CSV中的关键信息（与你CSV处理逻辑一致）
-#             cf_name = cf_item.get('name', '').strip()
-#             cf_id = cf_item.get('campaign_id', '').strip()
-#             cf_preview_url = cf_item.get('url', '').strip()
-#
-#             # 1. 基础信息校验（参照你create_campaign_with_creative的校验）
-#             if not all([cf_name, cf_id, cf_preview_url]):
-#                 err_msg = "CF活动信息不完整（缺少name/campaign_id/url）"
-#                 fail.append({"index": idx, "cf_info": cf_item, "reason": err_msg})
-#                 logger.warning(f"第{idx}个处理失败：{err_msg}")
-#                 continue
-#
-#             # 2. 提取ZC_开头的名称（按你要求，与之前一致）
-#             zc_index = cf_name.find('ZC_')
-#             if zc_index == -1:
-#                 err_msg = f"CF名称[{cf_name}]中未找到'ZC_'，无法提取合规名称"
-#                 fail.append({"index": idx, "cf_name": cf_name, "reason": err_msg})
-#                 logger.warning(f"第{idx}个处理失败：{err_msg}")
-#                 continue
-#             mtg_name = cf_name[zc_index:]  # 最终用于Campaign和Offer的名称
-#             logger.info(f"--- 处理第{idx}个CF活动：原始名={cf_name} → MTG名={mtg_name}, CF_ID={cf_id} ---")
-#
-#             try:
-#                 # ==============================================
-#                 # 第一步：创建MTG Campaign（完全复用create_campaign_with_creative逻辑）
-#                 # ==============================================
-#                 # 2.1 读取静态图片（复用你批量中的逻辑）
-#                 static_file = get_static_image_file()  # 你的函数，已验证可用
-#                 upload_result = upload_creative_file(static_file)  # 你的素材上传函数，已验证可用
-#                 if not upload_result['success'] or not upload_result.get('md5'):
-#                     raise ValueError(f"素材上传失败：{upload_result['msg']}")
-#                 creative_md5 = upload_result['md5']
-#
-#                 # 2.2 构建Campaign请求体（完全复制你create_campaign_with_creative的字段）
-#                 campaign_data = {
-#                     "campaign_name": mtg_name,  # 用ZC_开头的名称
-#                     "promotion_type": "WEBSITE",
-#                     "preview_url": cf_preview_url.strip(),
-#                     "is_coppa": "NO",
-#                     "alive_in_store": "NO",
-#                     "product_name": mtg_name,  # 与你一致：用名称作为product_name
-#                     "description": mtg_name,  # 与你一致：用名称作为description
-#                     "icon": creative_md5,
-#                     "platform": "ANDROID",
-#                     "category": ANDROID_CATEGORIES,  # 你定义的"TOOLS"，正确
-#                     "app_size": "",
-#                     "min_version": "",
-#                     "package_name": ""
-#                 }
-#
-#                 # 2.3 发送Campaign创建请求（复用你create_campaign_with_creative的请求逻辑）
-#                 campaign_headers = get_mintegral_headers()
-#                 campaign_response = requests.post(
-#                     MINTERGRAL_CAMPAIGN_URL,  # 你定义的正确地址
-#                     headers=campaign_headers,
-#                     json=campaign_data,
-#                     timeout=300
-#                 )
-#
-#                 # 2.4 处理Campaign响应（完全复用你create_campaign_with_creative的逻辑）
-#                 if campaign_response.status_code != 200:
-#                     raise ValueError(
-#                         f"Campaign创建HTTP失败：状态码={campaign_response.status_code}, 内容={campaign_response.text[:300]}")
-#                 try:
-#                     campaign_result = campaign_response.json()
-#                 except json.JSONDecodeError:
-#                     raise ValueError(f"Campaign响应非JSON：{campaign_response.text[:300]}")
-#                 if campaign_result.get('code') != 200:
-#                     raise ValueError(
-#                         f"Campaign创建失败：code={campaign_result.get('code')}, msg={campaign_result.get('msg')}")
-#                 mtg_campaign_id = campaign_result['data'].get('campaign_id')
-#                 if not mtg_campaign_id:
-#                     raise ValueError(
-#                         f"Campaign创建成功但未返回ID：{json.dumps(campaign_result, ensure_ascii=False)[:300]}")
-#                 logger.info(f"Campaign创建成功：ID={mtg_campaign_id}, 名称={mtg_name}")
-#
-#                 # ==============================================
-#                 # 第二步：创建MTG Offer（完全复用你create_offer的完整逻辑）
-#                 # ==============================================
-#                 # 3.1 Offer参数准备（完全复制你create_offer的参数）
-#                 bid_rate = 0.1  # 与你默认值一致
-#                 target_geo = "US"  # 与你默认值一致
-#                 billing_type = "CPI"  # 与你默认值一致
-#                 timezone_name = "Asia/Shanghai"  # 与你默认值一致
-#
-#                 # 3.2 严格参数校验（完全复用你create_offer的校验逻辑）
-#                 # 校验offer_name格式（你定义的正则：字母+数字+下划线，3-95位）
-#                 if not re.match(r'^[a-zA-Z0-9_]{3,95}$', mtg_name):
-#                     raise ValueError(f"Offer名称[{mtg_name}]格式错误（需3-95位字母/数字/下划线）")
-#                 # 校验bid_rate（你要求的正数）
-#                 if not (isinstance(bid_rate, (int, float)) and bid_rate > 0):
-#                     raise ValueError(f"出价[{bid_rate}]必须为正数")
-#                 # 校验target_geo（你要求的双字母格式）
-#                 if not re.match(r'^[A-Z]{2}(,[A-Z]{2})*$', target_geo):
-#                     raise ValueError(f"目标地区[{target_geo}]格式错误（如US或US,GB）")
-#                 # 校验billing_type（你支持的类型）
-#                 if billing_type not in ['CPI', 'CPC', 'CPM', 'CPA']:
-#                     raise ValueError(f"计费类型[{billing_type}]无效（仅支持CPI/CPC/CPM/CPA）")
-#
-#                 # 3.3 查询创意组详情（完全复用你create_offer的逻辑，必须做！）
-#                 logger.info(f"查询创意组详情：ID={creative_set_id}")
-#                 detail_headers = get_mintegral_headers()
-#                 detail_response = requests.get(
-#                     MINTERGRAL_CREATIVE_SETS_URL,
-#                     headers=detail_headers,
-#                     params={'creative_set_id': creative_set_id, 'page': 1, 'limit': 1},
-#                     timeout=300
-#                 )
-#                 if detail_response.status_code != 200:
-#                     raise ValueError(f"创意组查询HTTP失败：状态码={detail_response.status_code}")
-#                 try:
-#                     detail_result = detail_response.json()
-#                 except json.JSONDecodeError:
-#                     raise ValueError(f"创意组响应非JSON：{detail_response.text[:300]}")
-#                 if detail_result.get('code') != 200 or not detail_result['data'].get('list'):
-#                     raise ValueError(f"创意组不存在或无权限：code={detail_result.get('code')}")
-#                 creative_set_detail = detail_result['data']['list'][0]
-#                 logger.info(f"创意组详情：名称={creative_set_detail.get('creative_set_name')}")
-#
-#                 # 3.4 构建创意组参数（完全复用你create_offer的映射逻辑）
-#                 creative_type_mapping = {
-#                     # 你定义的完整映射，原样复制
-#                     "FULL_SCREEN_IMAGE": 111,
-#                     "DISPLAY_INTERSTITIAL": 111,
-#                     "BANNER": 121,
-#                     "DISPLAY_NATIVE": 121,
-#                     "ICON": 122,
-#                     "MORE_OFFER": 122,
-#                     "APP_WALL": 122,
-#                     "BASIC_BANNER": 131,
-#                     "IMAGE_BANNER": 132,
-#                     "VIDEO_END_CARD": 211,
-#                     "SPLASH_AD": 211,
-#                     "INTERSTITIAL_VIDEO": 211,
-#                     "REWARDED_VIDEO": 211,
-#                     "VIDEO_PLAYABLE": 212,
-#                     "FULL_SCREEN_VIDEO": 213,
-#                     "NATIVE_VIDEO": 213,
-#                     "INSTREAM_VIDEO": 213,
-#                     "LARGE_VIDEO_BANNER": 221,
-#                     "SMALL_VIDEO_BANNER": 231,
-#                     "VIDEO": 211,
-#                     "IMAGE": 111,
-#                     "PLAYABLE": 311,
-#                     "PLAYABLE_AD": 311
-#                 }
-#                 # 检查无效创意类型（复用你create_offer的逻辑）
-#                 if 0 in creative_set_detail.get("ad_outputs", []):
-#                     unknown_types = set()
-#                     for creative in creative_set_detail.get("creatives", []):
-#                         ct = creative.get("creative_type")
-#                         if ct and ct not in creative_type_mapping:
-#                             unknown_types.add(ct)
-#                     if unknown_types:
-#                         raise ValueError(f"创意组含未知类型：{','.join(unknown_types)}")
-#                 if not creative_set_detail.get("creatives"):
-#                     raise ValueError("创意组中无可用素材")
-#
-#                 # 3.5 构建Offer请求体（完全复制你create_offer的字段，无任何删减）
-#                 offer_payload = {
-#                     "campaign_id": int(mtg_campaign_id),  # 转整数，与你一致
-#                     "offer_name": mtg_name,  # 与Campaign名称一致
-#                     "daily_cap_type": "BUDGET",  # 你定义的类型
-#                     "daily_cap": 200,  # 你定义的默认值
-#                     "promote_timezone": get_timezone_offset(timezone_name),  # 你定义的时区函数
-#                     "start_time": int(time.time()) + (30 * 24 * 60 * 60),  # 你定义的30天后开始
-#                     "target_geo": target_geo,
-#                     "billing_type": billing_type,
-#                     "bid_rate": str(bid_rate),  # 转字符串，与你一致
-#                     "target_ad_type": (  # 你定义的完整target_ad_type
-#                         "BANNER,"
-#                         "MORE_OFFER,"
-#                         "DISPLAY_INTERSTITIAL,"
-#                         "DISPLAY_NATIVE,"
-#                         "APPWALL,"
-#                         "SPLASH_AD,"
-#                         "INTERSTITIAL_VIDEO,"
-#                         "NATIVE_VIDEO,"
-#                         "INSTREAM_VIDEO,"
-#                         "REWARDED_VIDEO"
-#                     ),
-#                     "creative_sets": [  # 复数数组，与你一致
-#                         {
-#                             "creative_set_name": creative_set_detail.get("creative_set_name"),
-#                             "geos": ["ALL"],  # 你定义的geo逻辑
-#                             "ad_outputs": creative_set_detail.get("ad_outputs"),
-#                             "creatives": [
-#                                 {
-#                                     "creative_name": c.get("creative_name"),
-#                                     "creative_md5": c.get("creative_md5"),
-#                                     "creative_type": c.get("creative_type"),
-#                                     "dimension": c.get("dimension")
-#                                 } for c in creative_set_detail.get("creatives", [])
-#                             ]
-#                         }
-#                     ],
-#                     "network": "WIFI,2G,3G,4G,5G",  # 你定义的网络类型
-#                     "target_device": "PHONE,TABLET",  # 你定义的设备类型
-#                     "status": 1  # 1=启用，与你一致
-#                 }
-#
-#                 # 3.6 发送Offer创建请求（复用你create_offer的请求逻辑）
-#                 offer_headers = get_mintegral_headers()
-#                 offer_response = requests.post(
-#                     MINTERGRAL_CREATE_OFFER_URL,  # 你定义的地址，不修改
-#                     headers=offer_headers,
-#                     json=offer_payload,
-#                     timeout=300  # 你定义的超时时间
-#                 )
-#
-#                 # 3.7 处理Offer响应（完全复用你create_offer的错误处理）
-#                 logger.info(f"Offer响应：状态码={offer_response.status_code}, 内容={offer_response.text[:300]}")
-#                 if offer_response.status_code != 200:
-#                     raise ValueError(
-#                         f"Offer创建HTTP失败：状态码={offer_response.status_code}, 内容={offer_response.text[:300]}")
-#                 try:
-#                     offer_result = offer_response.json()
-#                 except json.JSONDecodeError:
-#                     raise ValueError(f"Offer响应非JSON：{offer_response.text[:300]}")
-#                 if offer_result.get('code') != 200:
-#                     raise ValueError(f"Offer创建失败：code={offer_result.get('code')}, msg={offer_result.get('msg')}")
-#                 mtg_offer_id = offer_result['data'].get('offer_id')
-#                 if not mtg_offer_id:
-#                     raise ValueError(f"Offer创建成功但无ID：{json.dumps(offer_result, ensure_ascii=False)[:300]}")
-#                 logger.info(f"Offer创建成功：ID={mtg_offer_id}, 名称={mtg_name}")
-#
-#                 # ==============================================
-#                 # 记录成功结果
-#                 # ==============================================
-#                 success.append({
-#                     "index": idx,
-#                     "cf_info": {"name": cf_name, "campaign_id": cf_id},
-#                     "mtg_campaign": {"id": mtg_campaign_id, "name": mtg_name},
-#                     "mtg_offer": {"id": mtg_offer_id, "name": mtg_name}
-#                 })
-#
-#             except Exception as e:
-#                 # 记录失败结果（与你错误日志风格一致）
-#                 err_msg = str(e)
-#                 fail.append({
-#                     "index": idx,
-#                     "cf_info": {"name": cf_name, "campaign_id": cf_id},
-#                     "reason": err_msg
-#                 })
-#                 logger.error(f"第{idx}个创建失败：{err_msg}", exc_info=True)
-#
-#         # ==============================================
-#         # 批量结果返回（格式与你现有接口一致）
-#         # ==============================================
-#         final_result = {
-#             "total": len(cf_success_list),
-#             "success_count": len(success),
-#             "fail_count": len(fail),
-#             "success_details": success,
-#             "fail_details": fail
-#         }
-#         logger.info(f"=== 批量创建完成 === 总：{len(cf_success_list)} | 成功：{len(success)} | 失败：{len(fail)}")
-#         return jsonify({
-#             "code": 200,
-#             "msg": "批量创建完成",
-#             "data": final_result
-#         }), 200
-#
-#     except Exception as e:
-#         # 全局异常处理（与你现有接口一致）
-#         err_msg = f"批量创建异常：{str(e)}"
-#         logger.error(err_msg, exc_info=True)
-#         return jsonify({
-#             "code": 500,
-#             "msg": err_msg
-#         }), 500
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 启动逻辑（保留原配置）
 
 # 全局存储任务进度（生产环境建议用Redis）
 batch_task_progress = {}
