@@ -59,7 +59,7 @@ app = BUNDLE(
         a.zipfiles,
         a.datas,
         name='Cf-Mtg广告克隆工具',  # EXE名称（与.app前缀一致）
-        onefile=False,  # 关键：显式用onedir模式，兼容macOS .app
+        onefile=False,
         debug=True,
         strip=False,
         upx=False,  # 关闭压缩，避免原生库损坏
