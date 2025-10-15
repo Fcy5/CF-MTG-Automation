@@ -10,27 +10,26 @@ if os.path.exists(templates_dir):
     for root, dirs, files in os.walk(templates_dir):
         for file in files:
             src = os.path.join(root, file)
-            # 保持相对路径结构，打包后放在templates目录下
             dest = os.path.join('templates', os.path.relpath(root, templates_dir))
             templates_files.append((src, dest))
 
-# 新增：处理静态资源文件夹（static）
-static_files = []
-static_dir = os.path.abspath('statics')  # 假设静态资源放在static文件夹
-if os.path.exists(static_dir):
-    for root, dirs, files in os.walk(static_dir):
+# 处理静态资源文件夹（statics，保持与你的实际文件夹名一致）
+statics_files = []  # 变量名同步改为statics_files
+statics_dir = os.path.abspath('statics')  # 实际文件夹名：statics
+if os.path.exists(statics_dir):
+    for root, dirs, files in os.walk(statics_dir):
         for file in files:
-            src = os.path.join(root, file
-            # 保持相对路径结构，打包后放在static目录下
-            dest = os.path.join('statics', os.path.relpath(root, static_dir))
-            static_files.append((src, dest))
+            src = os.path.join(root, file)
+            # 目标路径保持为statics，与源文件夹名一致
+            dest = os.path.join('statics', os.path.relpath(root, statics_dir))
+            statics_files.append((src, dest))  # 列表名同步修改
 
 a = Analysis(
     ['app.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
-    # 合并模板文件和静态资源文件
-    datas=templates_files + static_files,
+    # 合并资源时使用正确的statics_files变量
+    datas=templates_files + statics_files,
     hiddenimports=[
         # Flask/Web核心依赖
         'flask', 'flask.json', 'jinja2', 'jinja2.ext',
@@ -64,8 +63,8 @@ app = BUNDLE(
         a.binaries,
         a.zipfiles,
         a.datas,
-        name='ClickFlare杀毒克隆工具',
-        debug=True,
+        name='ClickFlare工具',
+        debug=False,
         strip=False,
         upx=False,
         console=True,
@@ -75,7 +74,7 @@ app = BUNDLE(
         codesign_identity=None,
         entitlements_file=None,
     ),
-    name='ClickFlare杀毒克隆工具.app',
+    name='ClickFlare工具.app',
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
         'NSHighResolutionCapable': 'True',
