@@ -58,29 +58,21 @@ a = Analysis(
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# 生成EXE（onedir模式，默认）
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    name='CF-MTG杀毒克隆工具',
-    debug=False,
-    strip=False,
-    upx=False,
-    console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch='arm64',
-    codesign_identity=None,
-    entitlements_file=None,
-)
 
-# 生成.app捆绑包，显式指定输出目录
+# 保留并修改BUNDLE部分：
 app = BUNDLE(
-    exe,
+    COLLECT(  # 使用COLLECT替代EXE
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        name='CF-MTG杀毒克隆工具',
+        strip=False,
+        upx=False,
+    ),
     name='CF-MTG杀毒克隆工具.app',
+    icon=None,  # 可添加图标路径如'icon.icns'
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
         'NSHighResolutionCapable': 'True',
@@ -90,7 +82,8 @@ app = BUNDLE(
         'NSDesktopFolderUsageDescription': '需要访问桌面文件',
         'NSDownloadsFolderUsageDescription': '需要访问下载文件夹',
         'LSMinimumSystemVersion': '10.15',
+        # 添加CFBundleExecutable
+        'CFBundleExecutable': 'CF-MTG杀毒克隆工具',
     },
-    # 显式指定输出目录（与dist_dir一致）
     distpath=dist_dir,
 )
