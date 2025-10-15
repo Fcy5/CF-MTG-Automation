@@ -3,6 +3,10 @@ import os
 
 block_cipher = None
 
+# 明确指定打包输出目录（避免默认路径歧义）
+dist_dir = os.path.abspath('dist')  # 最终产物目录
+work_dir = os.path.abspath('build')  # 临时工作目录
+
 # 处理模板文件（templates）
 templates_files = []
 templates_dir = os.path.abspath('templates')
@@ -13,22 +17,20 @@ if os.path.exists(templates_dir):
             dest = os.path.join('templates', os.path.relpath(root, templates_dir))
             templates_files.append((src, dest))
 
-# 处理静态资源文件夹（statics，保持与你的实际文件夹名一致）
-statics_files = []  # 变量名同步改为statics_files
-statics_dir = os.path.abspath('statics')  # 实际文件夹名：statics
+# 处理静态资源文件夹（statics）
+statics_files = []
+statics_dir = os.path.abspath('statics')
 if os.path.exists(statics_dir):
     for root, dirs, files in os.walk(statics_dir):
         for file in files:
             src = os.path.join(root, file)
-            # 目标路径保持为statics，与源文件夹名一致
             dest = os.path.join('statics', os.path.relpath(root, statics_dir))
-            statics_files.append((src, dest))  # 列表名同步修改
+            statics_files.append((src, dest))
 
 a = Analysis(
     ['app.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
-    # 合并资源时使用正确的statics_files变量
     datas=templates_files + statics_files,
     hiddenimports=[
         # Flask/Web核心依赖
@@ -56,25 +58,29 @@ a = Analysis(
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# 生成EXE（onedir模式，默认）
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    name='CF-MTG杀毒克隆工具',
+    debug=False,
+    strip=False,
+    upx=False,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch='arm64',
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+# 生成.app捆绑包，显式指定输出目录
 app = BUNDLE(
-    EXE(
-        pyz,
-        a.scripts,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
-        name='CF-MTG克隆工具',
-        debug=False,
-        strip=False,
-        upx=False,
-        console=True,
-        disable_windowed_traceback=False,
-        argv_emulation=False,
-        target_arch='arm64',
-        codesign_identity=None,
-        entitlements_file=None,
-    ),
-    name='CF-MTG克隆工具.app',
+    exe,
+    name='CF-MTG杀毒克隆工具.app',
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
         'NSHighResolutionCapable': 'True',
@@ -85,4 +91,6 @@ app = BUNDLE(
         'NSDownloadsFolderUsageDescription': '需要访问下载文件夹',
         'LSMinimumSystemVersion': '10.15',
     },
+    # 显式指定输出目录（与dist_dir一致）
+    distpath=dist_dir,
 )
