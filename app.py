@@ -28,24 +28,70 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
- # 动态获取当前运行路径（解决打包后路径变化问题）
+
+
+# 初始化 Flask 应用时，显式指定模板文件夹路径
+# 在app.py的get_resource_path函数后，app初始化前添加日志
 def get_resource_path(relative_path):
     """获取资源文件的绝对路径，兼容开发环境和打包环境"""
     if getattr(sys, 'frozen', False):
-        # 打包后的环境（PyInstaller）
+        # 打包后的环境（Onedir模式下，sys._MEIPASS指向.app/Contents/Resources）
         base_path = sys._MEIPASS
+        logger.debug(f"打包环境：sys._MEIPASS = {base_path}")
     else:
         # 开发环境
         base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+        logger.debug(f"开发环境：base_path = {base_path}")
+    final_path = os.path.join(base_path, relative_path)
+    logger.debug(f"获取资源路径：{relative_path} → {final_path}")
+    # 检查路径是否存在
+    if os.path.exists(final_path):
+        logger.debug(f"路径存在：{final_path}")
+        # 如果是目录，打印目录下的文件
+        if os.path.isdir(final_path):
+            files = os.listdir(final_path)
+            logger.debug(f"目录下文件：{files}")
+    else:
+        logger.error(f"路径不存在：{final_path}")
+    return final_path
 
-# 初始化 Flask 应用时，显式指定模板文件夹路径
+# 初始化Flask应用（此时会触发get_resource_path的日志）
 app = Flask(
     __name__,
-    template_folder=get_resource_path('templates'),  # 强制指定模板目录
-    static_folder=get_resource_path('statics')       # 同时指定静态文件目录
+    template_folder=get_resource_path('templates'),
+    static_folder=get_resource_path('statics')
 )
 
+# 新增调试路由：访问http://127.0.0.1:端口/check-template查看实际路径
+@app.route('/check-template')
+def check_template():
+    template_dir = app.template_folder
+    # 检查模板目录是否存在
+    exists = os.path.exists(template_dir)
+    files = os.listdir(template_dir) if exists else []
+    # 检查index.html是否在目录中
+    has_index = 'index.html' in files
+    return f"""
+    <h1>模板路径调试</h1>
+    <p>当前template_folder：{template_dir}</p>
+    <p>路径是否存在：{exists}</p>
+    <p>目录下文件：{files}</p>
+    <p>是否包含index.html：{has_index}</p>
+    <p>sys._MEIPASS（打包环境）：{sys._MEIPASS if getattr(sys, 'frozen', False) else '开发环境无此变量'}</p>
+    """
+
+# 原index路由保留，但增加异常捕获和日志
+@app.route('/')
+def index():
+    try:
+        template_dir = app.template_folder
+        logger.info(f"尝试加载index.html，模板目录：{template_dir}")
+        logger.info(f"模板目录下文件：{os.listdir(template_dir)}")
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"加载index.html失败：{str(e)}", exc_info=True)
+        # 抛出更详细的异常信息
+        raise Exception(f"加载模板失败！模板目录：{template_dir}，目录下文件：{os.listdir(template_dir) if os.path.exists(template_dir) else '目录不存在'}") from e
 
 
 # 配置 API 密钥
@@ -342,10 +388,7 @@ def batch_clone_campaigns(source_campaign_id, clone_count):
 
 
 
-# Flask 路由（修复 6：确保进度接口返回完整结果）
-@app.route('/')
-def index():
-    return render_template('index.html')  # 现在会从指定的template_folder中查找
+
 
 
 @app.route("/api/get_campaign_id", methods=["POST"])
