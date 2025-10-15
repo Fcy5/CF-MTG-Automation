@@ -51,22 +51,26 @@ a = Analysis(
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# 使用COLLECT收集文件（onedir模式）
-coll = COLLECT(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    name='CF_MTG_Automation',  # 使用英文名称避免编码问题
-    strip=False,
-    upx=False,
-)
-
-# 生成.app应用包
+# 方案1：直接生成.app应用包（推荐）
 app = BUNDLE(
-    coll,
-    name='CF-MTG Automation.app',  # 应用包名称
+    EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        name='CF_MTG_Automation',
+        debug=False,
+        strip=False,
+        upx=False,
+        console=True,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch='arm64',
+        codesign_identity=None,
+        entitlements_file=None,
+    ),
+    name='CF-MTG Automation.app',
     icon=None,
     bundle_identifier='com.qlapp.ClickFlareTool',
     info_plist={
