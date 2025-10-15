@@ -37,10 +37,10 @@ jobs:
 
     - name: Check if app was built
       run: |
-        # 检查应用是否生成
-        if [ -d "dist/Cf-Mtg广告克隆工具.app" ]; then
+        # 检查应用是否生成（使用英文名称）
+        if [ -d "dist/CF-MTG Automation.app" ]; then
           echo "应用已生成"
-          ls -la "dist/Cf-Mtg广告克隆工具.app/"
+          ls -la "dist/CF-MTG Automation.app/"
         else
           echo "应用未生成，查看dist目录内容："
           ls -la dist/ || echo "dist目录不存在"
@@ -50,13 +50,13 @@ jobs:
     - name: Create DMG
       run: |
         # 使用正确的应用名称创建DMG
-        hdiutil create -volname "CF-MTG杀毒克隆工具" \
-          -srcfolder "dist/Cf-Mtg广告克隆工具.app" \
+        hdiutil create -volname "CF-MTG Automation" \
+          -srcfolder "dist/CF-MTG Automation.app" \
           -ov -format UDZO \
-          "dist/CF-MTG杀毒克隆工具.dmg"
+          "dist/CF-MTG-Automation.dmg"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: macOS-App
-        path: dist/CF-MTG杀毒克隆工具.dmg
+        path: dist/CF-MTG-Automation.dmg
