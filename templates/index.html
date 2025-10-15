@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>广告活动克隆工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        /* URL精简显示样式 */
+        .url-truncate {
+            display: inline-block;
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* 基础动画 */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 页面标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-blue-600 mb-3">
+                <i class="fa fa-clone mr-2"></i>广告活动克隆工具
+            </h1>
+            <p class="text-gray-500 max-w-2xl mx-auto">高效克隆广告活动，自动处理名称格式，并支持CSV导出功能</p>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="space-y-6">
+            <!-- 输入表单卡片 -->
+            <section class="bg-white rounded-xl shadow-md p-6 md:p-8 fade-in">
+                <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-gray-100">活动信息设置</h2>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- 源活动名称输入 -->
+                    <div class="space-y-2">
+                        <label for="sourceName" class="block text-sm font-medium text-gray-700">
+                            源活动名称 <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="sourceName"
+                            placeholder="例如：Mintegral-Adblock_ZC_TotalAB_00665_20250927"
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                            value="Mintegral-Adblock_ZC_TotalAV_20250918"
+                        >
+                        <p class="text-xs text-gray-500 mt-1">请输入包含"ZC_TotalAB_"的完整源活动名称</p>
+                    </div>
+
+                    <!-- 克隆数量设置 -->
+                    <div class="space-y-2">
+                        <label for="cloneNum" class="block text-sm font-medium text-gray-700">
+                            克隆数量 <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="cloneNum"
+                            min="1"
+                            max="50"
+                            value="5"
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        >
+                        <p class="text-xs text-gray-500 mt-1">每次最多可克隆50个活动</p>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="mt-8 flex flex-wrap gap-4">
+                    <button id="fetchIdBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg transition-all flex items-center">
+                        <i class="fa fa-search mr-2"></i>获取活动ID
+                    </button>
+                    <button id="cloneBtn" disabled class="bg-gray-300 cursor-not-allowed text-white px-6 py-2.5 rounded-lg transition-all flex items-center">
+                        <i class="fa fa-clone mr-2"></i>开始克隆
+                    </button>
+                </div>
+
+                <!-- 活动ID显示区域 -->
+                <div id="idResult" class="mt-6 hidden">
+                    <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm font-medium text-blue-800">活动ID已获取</p>
+                                <p class="mt-1 text-sm text-blue-700 font-mono" id="campaignIdDisplay"></p>
+                            </div>
+                            <button id="copyIdBtn" class="text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-100 transition-colors">
+                                <i class="fa fa-copy"></i> 复制
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 克隆进度区域 -->
+            <section id="progressSection" class="bg-white rounded-xl shadow-md p-6 md:p-8 hidden fade-in">
+                <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-gray-100">
+                    <i class="fa fa-spinner fa-spin text-blue-500 mr-2"></i>处理进度
+                </h2>
+
+                <div class="space-y-4">
+                    <div class="w-full bg-gray-200 rounded-full h-3.5">
+                        <div id="progressBar" class="bg-green-500 h-3.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                        <p id="progressText" class="text-gray-600">准备开始任务...</p>
+                        <p id="progressPercent" class="font-medium text-blue-600">0%</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 结果展示区域 -->
+            <section id="resultsSection" class="bg-white rounded-xl shadow-md p-6 md:p-8 hidden fade-in">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                    <h2 class="text-xl font-semibold pb-2 border-b border-gray-100">
+                        <i class="fa fa-table text-blue-500 mr-2"></i>克隆结果
+                    </h2>
+
+                    <button id="exportCsvBtn" class="bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-lg transition-all flex items-center self-start">
+                        <i class="fa fa-download mr-2"></i>导出CSV
+                    </button>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gray-50 rounded-lg p-4 text-center">
+                        <p class="text-sm text-gray-500">总克隆数</p>
+                        <p id="totalClones" class="text-2xl font-bold text-gray-800 mt-1">0</p>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4 text-center">
+                        <p class="text-sm text-green-600">成功数</p>
+                        <p id="successClones" class="text-2xl font-bold text-green-600 mt-1">0</p>
+                    </div>
+                    <div class="bg-red-50 rounded-lg p-4 text-center">
+                        <p class="text-sm text-red-600">失败数</p>
+                        <p id="failedClones" class="text-2xl font-bold text-red-600 mt-1">0</p>
+                    </div>
+                </div>
+
+                <!-- 结果表格 -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">序号</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MTG名称</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">活动URL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTable" class="bg-white divide-y divide-gray-200">
+                            <!-- 结果将动态填充 -->
+                            <tr id="emptyState" class="text-center">
+                                <td colspan="3" class="px-6 py-12 text-gray-500">
+                                    <i class="fa fa-file-text-o text-3xl mb-3 block opacity-30"></i>
+                                    克隆完成后将显示结果
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 错误提示 -->
+                <div id="errorAlert" class="mt-6 bg-red-50 border border-red-100 rounded-lg p-4 hidden">
+                    <p class="text-sm text-red-700 flex items-center">
+                        <i class="fa fa-exclamation-circle mr-2"></i>
+                        <span id="errorMessage">部分活动克隆失败，请查看日志了解详情</span>
+                    </p>
+                </div>
+            </section>
+
+            <!-- MTG安卓广告批量创建区域 -->
+            <section id="mtgCreateSection" class="bg-white rounded-xl shadow-md p-6 md:p-8 hidden fade-in mt-6">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                    <h2 class="text-xl font-semibold pb-2 border-b border-gray-100">
+                        <i class="fa fa-android text-green-600 mr-2"></i>MTG安卓广告批量创建
+                    </h2>
+                    <div class="flex gap-4">
+                        <button id="searchMtgCreativeSetBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-lg transition-all flex items-center">
+                            <i class="fa fa-search mr-2"></i>查询素材组
+                        </button>
+                        <button id="batchCreateMtgBtn" disabled class="bg-gray-300 cursor-not-allowed text-white px-5 py-2.5 rounded-lg transition-all flex items-center">
+                            <i class="fa fa-plus-circle mr-2"></i>批量创建
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 素材组名称搜索输入框 -->
+                <div class="mb-4">
+                    <label for="mtgCreativeSetSearchName" class="block text-sm font-medium text-gray-700 mb-2">
+                        素材组名称搜索 <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="mtgCreativeSetSearchName"
+                        placeholder="输入素材组名称关键词（如：00993）"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        value="00993"
+                    >
+                    <p class="text-xs text-gray-500 mt-1">
+                        提示：输入名称关键词进行模糊搜索，支持部分匹配（如输入"静态"可匹配所有含"静态"的素材组）
+                    </p>
+                </div>
+
+                <!-- 素材组选择区域 -->
+                <div class="mb-6">
+                    <label for="mtgCreativeSetSelect" class="block text-sm font-medium text-gray-700 mb-2">
+                        选择搜索结果中的素材组 <span class="text-red-500">*</span>
+                    </label>
+                    <select id="mtgCreativeSetSelect" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                        <option value="">-- 请先输入名称并点击"查询素材组" --</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">
+                        提示：仅显示搜索结果中激活状态的素材组，选择后将绑定到所有MTG广告
+                    </p>
+                </div>
+
+                <!-- MTG创建结果显示区域 -->
+                <div id="mtgResultSection" class="hidden">
+                    <!-- 统计卡片 -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-sm text-gray-500">总创建数</p>
+                            <p id="mtgTotalCount" class="text-2xl font-bold text-gray-800 mt-1">0</p>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-4 text-center">
+                            <p class="text-sm text-green-600">成功数</p>
+                            <p id="mtgSuccessCount" class="text-2xl font-bold text-green-600 mt-1">0</p>
+                        </div>
+                        <div class="bg-red-50 rounded-lg p-4 text-center">
+                            <p class="text-sm text-red-600">失败数</p>
+                            <p id="mtgFailCount" class="text-2xl font-bold text-red-600 mt-1">0</p>
+                        </div>
+                    </div>
+
+                    <!-- 结果表格 -->
+                    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50 sticky top-0 z-10">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">序号</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CF活动信息</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MTG Campaign</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MTG Offer</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mtgResultTable" class="bg-white divide-y divide-gray-200">
+                                <tr class="text-center">
+                                    <td colspan="5" class="px-6 py-12 text-gray-500">
+                                        <i class="fa fa-file-text-o text-3xl mb-3 block opacity-30"></i>
+                                        点击"批量创建"后显示结果
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 失败详情折叠面板 -->
+                    <div class="mt-6" id="mtgFailDetailPanel" style="display: none;">
+                        <button id="toggleMtgFailDetail" class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
+                            <i class="fa fa-chevron-down mr-1"></i> 查看失败详情
+                        </button>
+                        <div id="mtgFailDetailContent" class="mt-3 bg-red-50 border border-red-100 rounded-lg p-4 hidden">
+                            <ul id="mtgFailList" class="list-disc list-inside text-sm text-red-700 space-y-2">
+                                <!-- 失败详情将动态填充 -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 页脚 -->
+        <footer class="mt-12 text-center text-gray-500 text-sm">
+            <p>广告活动克隆工具 &copy; 2025</p>
+        </footer>
+    </div>
+
+    <script>
+        // 全局状态管理
+        const state = {
+            campaignId: null,
+            cloneCount: 1,
+            results: {
+                success_list: [], // 存储克隆成功的CF活动列表（含name、id、url）
+                fail_list: [],
+                success_count: 0,
+                fail_count: 0
+            }
+        };
+
+        // DOM元素引用（原有功能）
+        const elements = {
+            sourceName: document.getElementById('sourceName'),
+            cloneNum: document.getElementById('cloneNum'),
+            fetchIdBtn: document.getElementById('fetchIdBtn'),
+            cloneBtn: document.getElementById('cloneBtn'),
+            idResult: document.getElementById('idResult'),
+            campaignIdDisplay: document.getElementById('campaignIdDisplay'),
+            copyIdBtn: document.getElementById('copyIdBtn'),
+            progressSection: document.getElementById('progressSection'),
+            progressBar: document.getElementById('progressBar'),
+            progressText: document.getElementById('progressText'),
+            progressPercent: document.getElementById('progressPercent'),
+            resultsSection: document.getElementById('resultsSection'),
+            resultsTable: document.getElementById('resultsTable'),
+            emptyState: document.getElementById('emptyState'),
+            totalClones: document.getElementById('totalClones'),
+            successClones: document.getElementById('successClones'),
+            failedClones: document.getElementById('failedClones'),
+            exportCsvBtn: document.getElementById('exportCsvBtn'),
+            errorAlert: document.getElementById('errorAlert')
+        };
+
+        // MTG相关DOM元素引用
+        const mtgElements = {
+            mtgCreateSection: document.getElementById('mtgCreateSection'),
+            searchMtgCreativeSetBtn: document.getElementById('searchMtgCreativeSetBtn'),
+            batchCreateMtgBtn: document.getElementById('batchCreateMtgBtn'),
+            toggleMtgFailDetail: document.getElementById('toggleMtgFailDetail'),
+            mtgCreativeSetSearchName: document.getElementById('mtgCreativeSetSearchName'),
+            mtgCreativeSetSelect: document.getElementById('mtgCreativeSetSelect'),
+            mtgResultSection: document.getElementById('mtgResultSection'),
+            mtgTotalCount: document.getElementById('mtgTotalCount'),
+            mtgSuccessCount: document.getElementById('mtgSuccessCount'),
+            mtgFailCount: document.getElementById('mtgFailCount'),
+            mtgResultTable: document.getElementById('mtgResultTable'),
+            mtgFailDetailPanel: document.getElementById('mtgFailDetailPanel'),
+            mtgFailDetailContent: document.getElementById('mtgFailDetailContent'),
+            mtgFailList: document.getElementById('mtgFailList')
+        };
+
+        // 提取精简名称（强制保留ZC_开头，移除前缀）
+        function extractZCShortName(fullName) {
+            const zcIndex = fullName.indexOf('ZC_');
+            if (zcIndex !== -1) {
+                return fullName.substring(zcIndex);
+            }
+            return fullName + '（格式异常）';
+        }
+
+        // 获取活动ID
+        elements.fetchIdBtn.addEventListener('click', async () => {
+            const sourceName = elements.sourceName.value.trim();
+            if (!sourceName) {
+                alert('请输入源活动名称');
+                return;
+            }
+
+            elements.fetchIdBtn.disabled = true;
+            elements.fetchIdBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>处理中...';
+
+            try {
+                const response = await fetch('/api/get_campaign_id', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ campaign_name: sourceName })
+                });
+
+                const data = await response.json();
+                if (data.code === 200) {
+                    state.campaignId = data.data.campaign_id;
+                    elements.campaignIdDisplay.textContent = state.campaignId;
+                    elements.idResult.classList.remove('hidden');
+                    elements.cloneBtn.disabled = false;
+                    elements.cloneBtn.classList.remove('bg-gray-300', 'cursor-not-allowed');
+                    elements.cloneBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+                } else {
+                    alert(`获取失败: ${data.message}`);
+                    elements.idResult.classList.add('hidden');
+                    elements.cloneBtn.disabled = true;
+                    elements.cloneBtn.classList.add('bg-gray-300', 'cursor-not-allowed');
+                    elements.cloneBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                }
+            } catch (error) {
+                console.error('获取活动ID错误:', error);
+                alert('获取活动ID时发生错误');
+                elements.cloneBtn.disabled = true;
+            } finally {
+                elements.fetchIdBtn.disabled = false;
+                elements.fetchIdBtn.innerHTML = '<i class="fa fa-search mr-2"></i>获取活动ID';
+            }
+        });
+
+        // 复制活动ID
+        elements.copyIdBtn.addEventListener('click', async () => {
+            if (!state.campaignId) return;
+
+            try {
+                await navigator.clipboard.writeText(state.campaignId);
+                alert('活动ID已复制到剪贴板');
+            } catch (error) {
+                const tempInput = document.createElement('input');
+                tempInput.value = state.campaignId;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                alert('活动ID已复制到剪贴板');
+            }
+        });
+
+        // 开始克隆
+        elements.cloneBtn.addEventListener('click', async () => {
+            state.cloneCount = parseInt(elements.cloneNum.value);
+
+            if (!state.campaignId || isNaN(state.cloneCount) || state.cloneCount < 1 || state.cloneCount > 50) {
+                alert('请确保活动ID已获取且克隆数量在1-50之间');
+                return;
+            }
+
+            elements.resultsTable.innerHTML = '<tr id="emptyState" class="text-center"><td colspan="3" class="px-6 py-12 text-gray-500"><i class="fa fa-circle-o-notch fa-spin text-3xl mb-3 block opacity-30"></i>克隆中，请等待...</td></tr>';
+            elements.errorAlert.classList.add('hidden');
+
+            elements.progressSection.classList.remove('hidden');
+            elements.resultsSection.classList.add('hidden');
+            elements.progressBar.style.width = '0%';
+            elements.progressPercent.textContent = '0%';
+            elements.progressText.textContent = `正在准备克隆${state.cloneCount}个活动...`;
+
+            elements.fetchIdBtn.disabled = true;
+            elements.cloneBtn.disabled = true;
+            elements.sourceName.disabled = true;
+            elements.cloneNum.disabled = true;
+
+            try {
+                const response = await fetch('/api/batch_clone', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source_campaign_id: state.campaignId,
+                        clone_count: state.cloneCount
+                    })
+                });
+
+                const data = await response.json();
+                if (data.code === 200) {
+                    startProgressPolling();
+                } else {
+                    alert(`启动失败: ${data.message}`);
+                    resetUIState();
+                }
+            } catch (error) {
+                console.error('克隆启动错误:', error);
+                alert('启动克隆任务时发生错误');
+                resetUIState();
+            }
+        });
+
+        // 重置UI状态
+        function resetUIState() {
+            elements.fetchIdBtn.disabled = false;
+            elements.cloneBtn.disabled = false;
+            elements.sourceName.disabled = false;
+            elements.cloneNum.disabled = false;
+        }
+
+        // 轮询克隆进度
+        function startProgressPolling() {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/clone_progress');
+                    const data = await response.json();
+
+                    if (data.code === 200) {
+                        const { progress, success_list, fail_list, success_count, fail_count } = data.data;
+                        state.results = { success_list, fail_list, success_count, fail_count };
+
+                        const percent = progress.progress_percent;
+                        elements.progressBar.style.width = `${percent}%`;
+                        elements.progressPercent.textContent = `${percent}%`;
+                        elements.progressText.textContent = `${progress.status} - 已完成 ${progress.completed}/${progress.total} 个`;
+
+                        if (progress.status === 'completed' || progress.status === 'failed') {
+                            clearInterval(interval);
+                            displayResults();
+                            resetUIState();
+                        }
+                    }
+                } catch (error) {
+                    console.error('获取进度错误:', error);
+                    clearInterval(interval);
+                    alert('获取克隆进度失败');
+                    resetUIState();
+                }
+            }, 1000);
+        }
+
+        // 显示克隆结果（含MTG区域显示）
+        function displayResults() {
+            const { success_list, fail_list, success_count, fail_count } = state.results;
+
+            elements.totalClones.textContent = state.cloneCount;
+            elements.successClones.textContent = success_count;
+            elements.failedClones.textContent = fail_count;
+
+            if (fail_count > 0) {
+                elements.errorAlert.classList.remove('hidden');
+            }
+
+            elements.resultsTable.innerHTML = '';
+            if (success_list.length > 0) {
+                success_list.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                    const displayName = extractZCShortName(item.name || '');
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${displayName}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">
+                            <a href="${item.url}" target="_blank" class="text-blue-600 hover:underline url-truncate" title="${item.url}">
+                                ${item.url}
+                            </a>
+                        </td>
+                    `;
+                    elements.resultsTable.appendChild(row);
+                });
+            } else {
+                elements.resultsTable.innerHTML = `
+                    <tr class="text-center">
+                        <td colspan="3" class="px-6 py-12 text-gray-500">
+                            <i class="fa fa-exclamation-triangle text-yellow-500 text-3xl mb-3 block"></i>
+                            没有成功克隆的活动
+                        </td>
+                    </tr>
+                `;
+            }
+
+            elements.progressSection.classList.add('hidden');
+            elements.resultsSection.classList.remove('hidden');
+            showMtgCreateSection(); // 克隆完成后显示MTG创建区域
+        }
+
+        // CSV导出功能
+        elements.exportCsvBtn.addEventListener('click', async () => {
+            const { success_list } = state.results;
+
+            if (success_list.length === 0) {
+                alert('没有可导出的活动数据');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/export_csv');
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    alert(result.data.message + "\n\n提示：可复制路径到 Finder 中按 Command+Shift+G 粘贴并跳转");
+                } else {
+                    alert(`导出失败: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('CSV导出错误:', error);
+                alert('导出失败，请重试');
+            }
+        });
+
+        // 显示MTG创建区域
+        function showMtgCreateSection() {
+            if (mtgElements.mtgCreateSection) {
+                mtgElements.mtgCreateSection.classList.remove('hidden');
+                console.log('MTG创建区域已显示');
+            }
+        }
+
+        // 按名称搜索MTG素材组
+        mtgElements.searchMtgCreativeSetBtn.addEventListener('click', async () => {
+            const searchInput = mtgElements.mtgCreativeSetSearchName;
+            const searchName = searchInput.value.trim();
+
+            if (!searchName) {
+                alert('请输入搜索关键词（如00993）');
+                searchInput.focus();
+                return;
+            }
+
+            mtgElements.searchMtgCreativeSetBtn.disabled = true;
+            mtgElements.searchMtgCreativeSetBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>搜索中...';
+            mtgElements.mtgCreativeSetSelect.innerHTML = '<option value="">-- 搜索中，请等待 --</option>';
+
+            try {
+                // 构建带参数的请求URL
+                const url = new URL('/api/mtg/search_creative_sets_simple', window.location.origin);
+                const params = new URLSearchParams();
+                params.append('creative_set_name', searchName);
+                params.append('page', '1');
+                params.append('limit', '45');
+                url.search = params.toString();
+
+                const response = await fetch(url.toString(), {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    if (result.code === 200) {
+                        const { creative_sets, total } = result.data;
+                        if (total === 0) {
+                            mtgElements.mtgCreativeSetSelect.innerHTML = '<option value="">-- 未找到匹配素材组 --</option>';
+                            alert(`未找到含"${searchName}"的素材组`);
+                            return;
+                        }
+
+                        mtgElements.mtgCreativeSetSelect.innerHTML = '<option value="">-- 请选择素材组 --</option>';
+                        creative_sets.forEach(set => {
+                            const option = document.createElement('option');
+                            option.value = set.id;
+                            option.textContent = `${set.name}（关联广告活动：${set.campaign_name || '未知'}，ID：${set.id}）`;
+                            mtgElements.mtgCreativeSetSelect.appendChild(option);
+                        });
+
+                        // 启用批量创建按钮
+                        mtgElements.batchCreateMtgBtn.disabled = false;
+                        mtgElements.batchCreateMtgBtn.classList.remove('bg-gray-300', 'cursor-not-allowed');
+                        mtgElements.batchCreateMtgBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+                        alert(`找到${total}个匹配素材组`);
+                    } else {
+                        alert(`搜索失败：${result.msg}`);
+                    }
+                } else {
+                    alert(`网络错误：HTTP ${response.status}`);
+                }
+            } catch (error) {
+                alert(`搜索异常：${error.message}`);
+            } finally {
+                mtgElements.searchMtgCreativeSetBtn.disabled = false;
+                mtgElements.searchMtgCreativeSetBtn.innerHTML = '<i class="fa fa-search mr-2"></i>查询素材组';
+            }
+        });
+
+
+
+
+
+
+      // MTG批量创建按钮点击事件（改造后：启动任务 + 轮询进度）
+mtgElements.batchCreateMtgBtn.addEventListener('click', async () => {
+    const { success_list: cfSuccessList } = state.results;
+    const selectedCreativeSetId = mtgElements.mtgCreativeSetSelect.value;
+    const totalCount = cfSuccessList.length;
+
+    // 前置校验
+    if (totalCount === 0) {
+        alert('请先完成CF活动克隆（需至少1个成功的CF活动）');
+        return;
+    }
+    if (!selectedCreativeSetId) {
+        alert('请从下拉框选择一个搜索到的素材组');
+        return;
+    }
+    if (!confirm(`确认批量创建${totalCount}个MTG安卓广告？\n每个广告包含：1个Campaign + 1个Offer（绑定静态图片和选中的素材组）`)) {
+        return;
+    }
+
+    // 显示并初始化进度条
+    elements.progressSection.classList.remove('hidden');
+    elements.progressBar.style.width = '0%';
+    elements.progressPercent.textContent = '0%';
+    elements.progressText.textContent = '正在启动任务...';
+
+    // 初始化UI
+    mtgElements.batchCreateMtgBtn.disabled = true;
+    mtgElements.batchCreateMtgBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>创建中...';
+    mtgElements.mtgResultTable.innerHTML = '';
+    mtgElements.mtgResultSection.classList.remove('hidden');
+    mtgElements.mtgFailDetailPanel.style.display = 'none';
+    mtgElements.mtgFailDetailContent.classList.add('hidden');
+    mtgElements.mtgFailList.innerHTML = '';
+
+    try {
+        // 调用后端“启动批量任务”接口
+        const startResponse = await fetch('/api/mtg/batch_create_campaign_offer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cf_success_list: cfSuccessList.map(cfItem => ({
+                    name: cfItem.name || '未知CF名称',
+                    campaign_id: cfItem.id || '未知CF ID',
+                    url: cfItem.url || ''
+                })),
+                creative_set_id: selectedCreativeSetId
+            })
+        });
+
+        const startData = await startResponse.json();
+        if (startData.code !== 200) {
+            throw new Error(startData.msg || '启动批量任务失败');
+        }
+
+        const taskId = startData.data.task_id;
+        elements.progressText.textContent = '任务已启动，开始轮询进度...';
+
+        // 轮询进度的函数
+        const pollProgress = async () => {
+            // 调用后端“查询进度”接口
+            const progressResponse = await fetch(`/api/mtg/batch_progress/${taskId}`);
+            const progressData = await progressResponse.json();
+
+            if (progressData.code !== 200) {
+                throw new Error(progressData.msg || '查询进度失败');
+            }
+
+            const { total, completed, success, fail, status, error } = progressData.data;
+            const percent = total > 0 ? Math.floor((completed / total) * 100) : 0;
+
+            // 更新进度条
+            elements.progressBar.style.width = `${percent}%`;
+            elements.progressPercent.textContent = `${percent}%`;
+            elements.progressText.textContent = `处理中：已完成 ${completed}/${total} 个（状态：${status}）`;
+
+            // 实时渲染“成功的子任务”到表格
+            success.forEach(item => {
+                // 避免重复渲染相同索引的行
+                const isRendered = Array.from(mtgElements.mtgResultTable.querySelectorAll('tr'))
+                    .some(row => row.querySelector('td:first-child').textContent == item.index);
+                if (!isRendered) {
+                    const successRow = document.createElement('tr');
+                    successRow.className = 'bg-white hover:bg-gray-50 transition-colors';
+                    successRow.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.index}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <div>CF名称：${item.cf_info.name}</div>
+                            <div class="text-xs text-gray-500 mt-1">CF ID：${item.cf_info.campaign_id}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            <div>Campaign名称：${item.mtg_campaign.name}</div>
+                            <div class="text-xs text-blue-600 mt-1">ID：${item.mtg_campaign.id}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            <div>Offer名称：${item.mtg_offer.name}</div>
+                            <div class="text-xs text-blue-600 mt-1">ID：${item.mtg_offer.id}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                            <i class="fa fa-check-circle mr-1"></i>成功
+                        </td>
+                    `;
+                    mtgElements.mtgResultTable.appendChild(successRow);
+                }
+            });
+
+            // 实时渲染“失败的子任务”到表格
+            fail.forEach(item => {
+                const isRendered = Array.from(mtgElements.mtgResultTable.querySelectorAll('tr'))
+                    .some(row => row.querySelector('td:first-child').textContent == item.index);
+                if (!isRendered) {
+                    const failRow = document.createElement('tr');
+                    failRow.className = 'bg-white hover:bg-gray-50 transition-colors';
+                    failRow.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.index}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <div>CF名称：${item.cf_info.name || '未知'}</div>
+                            <div class="text-xs text-gray-500 mt-1">CF ID：${item.cf_info.campaign_id || '未知'}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                            <i class="fa fa-times-circle mr-1"></i>失败
+                        </td>
+                    `;
+                    mtgElements.mtgResultTable.appendChild(failRow);
+
+                    // 追加失败详情到折叠面板
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="font-medium">第${item.index}个（CF名称：${item.cf_info.name || '未知'}）：</span>${item.reason || '未知错误'}`;
+                    mtgElements.mtgFailList.appendChild(li);
+                    mtgElements.mtgFailDetailPanel.style.display = 'block';
+                }
+            });
+
+            // 任务完成后停止轮询
+            if (status === 'completed' || status === 'failed') {
+                // 更新最终状态文案
+                elements.progressText.textContent = status === 'completed'
+                    ? `批量创建完成（共${total}个，成功${success.length}个，失败${fail.length}个）`
+                    : `批量创建失败：${error || '未知错误'}`;
+
+                // 更新统计卡片
+                mtgElements.mtgTotalCount.textContent = total;
+                mtgElements.mtgSuccessCount.textContent = success.length;
+                mtgElements.mtgFailCount.textContent = fail.length;
+
+                // 展开失败详情（如果有失败）
+                if (fail.length > 0) {
+                    mtgElements.mtgFailDetailContent.classList.remove('hidden');
+                    mtgElements.toggleMtgFailDetail.innerHTML = '<i class="fa fa-chevron-up mr-1"></i> 收起失败详情';
+                }
+
+                // 恢复按钮状态
+                mtgElements.batchCreateMtgBtn.disabled = false;
+                mtgElements.batchCreateMtgBtn.innerHTML = '<i class="fa fa-plus-circle mr-2"></i>批量创建';
+
+                // 弹出最终提示
+                alert(status === 'completed'
+                    ? `MTG批量创建完成！\n总数量：${total}个 | 成功：${success.length}个 | 失败：${fail.length}个`
+                    : `MTG批量创建失败：${error}`);
+                return; // 停止轮询
+            }
+
+            // 继续轮询（1秒后再次查询）
+            setTimeout(pollProgress, 1000);
+        };
+
+        // 启动第一次轮询
+        pollProgress();
+
+    } catch (error) {
+        // 处理启动任务或轮询中的异常
+        elements.progressText.textContent = '批量创建请求异常';
+        mtgElements.mtgResultTable.innerHTML = `
+            <tr class="text-center">
+                <td colspan="5" class="px-6 py-12 text-red-500">
+                    <i class="fa fa-times-circle text-3xl mb-3 block"></i>
+                    MTG批量创建异常：${error.message}
+                </td>
+            </tr>
+        `;
+        alert(`MTG批量创建异常：${error.message}`);
+
+        // 恢复按钮状态
+        mtgElements.batchCreateMtgBtn.disabled = false;
+        mtgElements.batchCreateMtgBtn.innerHTML = '<i class="fa fa-plus-circle mr-2"></i>批量创建';
+    }
+});
+    </script>
+</body>
+</html>
