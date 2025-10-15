@@ -28,23 +28,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def get_base_path():
-    """获取应用基础路径（兼容开发环境和打包环境）"""
+ # 动态获取当前运行路径（解决打包后路径变化问题）
+def get_resource_path(relative_path):
+    """获取资源文件的绝对路径，兼容开发环境和打包环境"""
     if getattr(sys, 'frozen', False):
-        # 打包后环境
-        return sys._MEIPASS
+        # 打包后的环境（PyInstaller）
+        base_path = sys._MEIPASS
     else:
         # 开发环境
-        return os.path.dirname(os.path.abspath(__file__))
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
-# 初始化 Flask 应用（修复打包路径问题）
-base_path = get_base_path()
-template_path = os.path.join(base_path, 'templates')
-static_path = os.path.join(base_path, 'statics')
+# 初始化 Flask 应用时，显式指定模板文件夹路径
+app = Flask(
+    __name__,
+    template_folder=get_resource_path('templates'),  # 强制指定模板目录
+    static_folder=get_resource_path('statics')       # 同时指定静态文件目录
+)
 
-app = Flask(__name__,
-            template_folder=template_path,
-            static_folder=static_path)
+
 
 # 配置 API 密钥
 API_KEY = "0cd87c1ce7251b3aa8414f3613b259b3e282bf7c66cd56f4ae2913eeb53c5ee0.e2deb7cb288cc2544c1836a235f25ab3f59bcfb6"
@@ -341,9 +343,9 @@ def batch_clone_campaigns(source_campaign_id, clone_count):
 
 
 # Flask 路由（修复 6：确保进度接口返回完整结果）
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template("index.html")
+    return render_template('index.html')  # 现在会从指定的template_folder中查找
 
 
 @app.route("/api/get_campaign_id", methods=["POST"])
