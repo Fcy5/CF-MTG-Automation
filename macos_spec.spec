@@ -7,32 +7,37 @@ project_root = os.path.abspath('.')
 dist_dir = os.path.join(project_root, 'dist')
 work_dir = os.path.join(project_root, 'build')
 
-# 处理模板文件（保持原逻辑，确保dest正确）
+# ========== 修复1：模板文件配置（dest仅为目标目录） ==========
 templates_files = []
 templates_dir = os.path.join(project_root, 'templates')
 if os.path.exists(templates_dir):
     print(f"[INFO] 发现templates目录：{templates_dir}")
+    # 遍历templates目录下所有文件（含子目录）
     for root, dirs, files in os.walk(templates_dir):
         for file in files:
-            src = os.path.join(root, file)
-            # dest格式：打包后放在 "templates/文件名"，与代码预期一致
-            dest = os.path.join('templates', os.path.relpath(src, templates_dir))
-            templates_files.append((src, dest))
-            print(f"[INFO] 加入模板资源：{src} → {dest}")
+            src_file = os.path.join(root, file)  # 源：具体文件路径
+            # 目标目录：保持原目录结构（如templates/subdir → 目标subdir）
+            # 计算相对于templates_dir的子目录路径（无则为空）
+            relative_dir = os.path.relpath(root, templates_dir)
+            # 最终目标目录：templates/relative_dir（relative_dir为空时就是templates）
+            dest_dir = os.path.join('templates', relative_dir) if relative_dir != '.' else 'templates'
+            templates_files.append((src_file, dest_dir))  # 关键：dest是目录，不是文件
+            print(f"[INFO] 模板资源映射：{src_file} → {dest_dir}/（自动保留文件名）")
 else:
     print(f"[ERROR] 未找到templates目录：{templates_dir}")
 
-# 处理静态资源（同上）
+# ========== 修复2：静态资源配置（同模板逻辑） ==========
 statics_files = []
 statics_dir = os.path.join(project_root, 'statics')
 if os.path.exists(statics_dir):
     print(f"[INFO] 发现statics目录：{statics_dir}")
     for root, dirs, files in os.walk(statics_dir):
         for file in files:
-            src = os.path.join(root, file)
-            dest = os.path.join('statics', os.path.relpath(src, statics_dir))
-            statics_files.append((src, dest))
-            print(f"[INFO] 加入静态资源：{src} → {dest}")
+            src_file = os.path.join(root, file)
+            relative_dir = os.path.relpath(root, statics_dir)
+            dest_dir = os.path.join('statics', relative_dir) if relative_dir != '.' else 'statics'
+            statics_files.append((src_file, dest_dir))
+            print(f"[INFO] 静态资源映射：{src_file} → {dest_dir}/（自动保留文件名）")
 else:
     print(f"[ERROR] 未找到statics目录：{statics_dir}")
 
