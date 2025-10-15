@@ -60,7 +60,7 @@ app = BUNDLE(
         a.zipfiles,
         a.datas,
         name='CF_MTG_Automation',
-        debug=False,
+        debug=True,
         strip=False,
         upx=False,
         console=True,
