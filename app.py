@@ -26,12 +26,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 初始化 Flask 应用（保留打包适配）
-if getattr(sys, 'frozen', False):
-    template_folder = os.path.join(sys._MEIPASS, 'templates')
-    app = Flask(__name__, template_folder=template_folder)
-else:
-    app = Flask(__name__)
+def get_base_path():
+    """获取应用基础路径（兼容开发环境和打包环境）"""
+    if getattr(sys, 'frozen', False):
+        # 打包后环境
+        return sys._MEIPASS
+    else:
+        # 开发环境
+        return os.path.dirname(os.path.abspath(__file__))
+
+# 初始化 Flask 应用（修复打包路径问题）
+base_path = get_base_path()
+template_path = os.path.join(base_path, 'templates')
+static_path = os.path.join(base_path, 'statics')
+
+app = Flask(__name__,
+            template_folder=template_path,
+            static_folder=static_path)
 
 # 配置 API 密钥
 API_KEY = "0cd87c1ce7251b3aa8414f3613b259b3e282bf7c66cd56f4ae2913eeb53c5ee0.e2deb7cb288cc2544c1836a235f25ab3f59bcfb6"
@@ -324,6 +335,7 @@ def batch_clone_campaigns(source_campaign_id, clone_count):
 
     # 返回完整结果（供接口调用）
     return {**CLONE_RESULTS, "progress": CLONE_PROGRESS}
+
 
 
 # Flask 路由（修复 6：确保进度接口返回完整结果）
@@ -1109,20 +1121,32 @@ def get_batch_progress(task_id):
 
 flask_port = None
 
+# def run_flask():
+#     global flask_port
+#
+#     # 动态获取可用端口
+#     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     s.bind(('127.0.0.1', 0))
+#     port = s.getsockname()[1]
+#     s.close()
+#     # flask_port = port
+#     flask_port = 5000
+#
+#     logger.info(f"Flask 服务启动：http://127.0.0.1:{port}")
+#     app.run(host='127.0.0.1', port=port, debug=True, use_reloader=False)
+
 def run_flask():
     global flask_port
-
-    # 动态获取可用端口
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('127.0.0.1', 0))
-    port = s.getsockname()[1]
-    s.close()
-    flask_port = port
-
-    logger.info(f"Flask 服务启动：http://127.0.0.1:{port}")
-    app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False)
-
-
+    flask_port = 5000  # 固定端口，方便调试
+    logger.info(f"Flask 服务启动：http://127.0.0.1:{flask_port}")
+    # 关键：开启debug模式，浏览器显示错误堆栈；关闭reloader避免打包后冲突
+    app.run(
+        host='127.0.0.1',
+        port=flask_port,
+        debug=True,   # 开启调试，浏览器显示详细错误
+        use_reloader=False,  # 打包后必须关闭重加载
+        threaded=True  # 支持多线程，避免接口阻塞
+    )
 
 def main():
     # 启动 Flask 线程
